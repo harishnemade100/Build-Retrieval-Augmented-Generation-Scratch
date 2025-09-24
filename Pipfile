@@ -4,6 +4,17 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
+einops = "*"
+timm = "*"
+jina = "*"
+torch = "*"
+torchvision = "*"
+transformers = "*"
+ftfy = "*"
+tqdm = "*"
+chromadb = "*"
+pillow = "*"
+sentence-transformers = "*"
 
 [dev-packages]
 
