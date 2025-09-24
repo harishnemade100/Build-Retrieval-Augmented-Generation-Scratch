@@ -2,6 +2,7 @@ import os
 import json
 import requests
 import fitz
+from app.src.generate_embeddings import EmbeddingsGenerator
 
 
 class ReadFile:
@@ -103,4 +104,9 @@ class ReadFile:
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(docs, f, indent=2)
         print(f"📑 Ingested {len(docs)} docs, saved metadata: {meta_path}")
-        return docs
+
+
+        embeddings_generator = EmbeddingsGenerator(metadata_path=meta_path)
+        embeddings_generator.generate()
+        embeddings_generator.save_embeddings()
+
