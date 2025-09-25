@@ -1,13 +1,13 @@
 import os
 import json
 import numpy as np
-from PIL import Image
 from tqdm import tqdm
-from sentence_transformers import SentenceTransformer
+from PIL import Image
+from transformers import AutoModel  # as per README usage for jina-clip
 
 class EmbeddingsGenerator:
     """
-    Generate embeddings for text and images using the official `jina-clip-v1` model.
+    Generate embeddings for text and images using the official `jina-clip-v1` model API.
     """
 
     def __init__(self, metadata_path="data/attention_is_all_you_need/docs_metadata.json"):
@@ -18,8 +18,8 @@ class EmbeddingsGenerator:
         with open(metadata_path, "r", encoding="utf-8") as f:
             self.docs_metadata = json.load(f)
 
-        # Load the Jina-CLIP-v1 model
-        self.model = SentenceTransformer("jinaai/jina-clip-v1", trust_remote_code=True)
+        # Load the Jina CLIP v1 model using the documented API
+        self.model = AutoModel.from_pretrained("jinaai/jina-clip-v1", trust_remote_code=True)
 
     def generate(self):
         """
@@ -32,32 +32,38 @@ class EmbeddingsGenerator:
             text = doc.get("text", "")
             image_paths = doc.get("image_paths", [])
 
-            embedding = None
+            text_emb = None
+            img_emb = None
 
-            # Encode text
+            # Encode text if exists
             if text:
-                embedding = self.model.encode([text])[0]
+                # The model (AutoModel) offers `.encode_text(...)` per README usage :contentReference[oaicite:2]{index=2}
+                text_emb = self.model.encode_text([text])[0]
 
-            # Encode images
+            # Encode images if exists
             if image_paths:
-                image_embeddings = []
+                image_embs = []
                 for img_path in image_paths:
                     if os.path.exists(img_path):
+                        # PIL image or path acceptable
                         image = Image.open(img_path).convert("RGB")
-                        img_emb = self.model.encode([image])[0]
-                        image_embeddings.append(img_emb)
+                        # The model offers `.encode_image(...)` per README API :contentReference[oaicite:3]{index=3}
+                        emb = self.model.encode_image([image])[0]
+                        image_embs.append(emb)
+                if image_embs:
+                    img_emb = np.mean(image_embs, axis=0)
 
-                if image_embeddings:
-                    img_mean = np.mean(image_embeddings, axis=0)
-                    if embedding is not None:
-                        # Combine text + image embeddings by averaging
-                        embedding = (embedding + img_mean) / 2
-                    else:
-                        embedding = img_mean
+            # Combine embeddings if both present (e.g. average)
+            if text_emb is not None and img_emb is not None:
+                emb = (text_emb + img_emb) / 2
+            elif text_emb is not None:
+                emb = text_emb
+            else:
+                emb = img_emb
 
             docs_embeddings.append({
                 "id": doc["id"],
-                "embedding": embedding,
+                "embedding": emb,
                 "page": doc.get("page"),
                 "chunk_id": doc.get("chunk_id"),
                 "image_paths": image_paths
@@ -71,6 +77,8 @@ class EmbeddingsGenerator:
         Save all embeddings to a .npy file for later use.
         """
         embeddings_data = self.generate()
-        all_embeddings = np.stack([d["embedding"] for d in embeddings_data if d["embedding"] is not None])
+        # Filter out None embeddings
+        valid = [d["embedding"] for d in embeddings_data if d["embedding"] is not None]
+        all_embeddings = np.stack(valid, axis=0)
         np.save(output_path, all_embeddings)
         print(f"✅ Saved embeddings to {output_path}")
