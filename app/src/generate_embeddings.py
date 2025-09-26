@@ -3,7 +3,8 @@ import json
 import numpy as np
 from tqdm import tqdm
 from PIL import Image
-from transformers import AutoModel  # as per README usage for jina-clip
+from transformers import AutoModel
+from app.src.store_vector_database import VectorDB
 
 class EmbeddingsGenerator:
     """
@@ -70,7 +71,12 @@ class EmbeddingsGenerator:
             })
 
         print(f"✅ Generated embeddings for {len(docs_embeddings)} documents")
-        return docs_embeddings
+
+        vector_db = VectorDB()
+        vector_db.add_embeddings(docs_embeddings)
+        vector_db.persist()
+            
+
 
     def save_embeddings(self, output_path="data/attention_is_all_you_need/docs_embeddings.npy"):
         """
